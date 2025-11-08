@@ -1,1 +1,206 @@
+// TABLE CREATION ----------------------------------------
+CREATE TABLE model (
+    mid SERIAL PRIMARY KEY, 
+    btype VARCHAR(50) NOT NULL UNIQUE, 
+    age INTEGER,                        
+    price NUMERIC(10, 2)                
+);
+----------------------
+CREATE TABLE bus (
+     bid SERIAL PRIMARY KEY, 
+    mid INTEGER NOT NULL,           
+    bno VARCHAR(10) NOT NULL UNIQUE, 
+    startpt VARCHAR(100),            
+    endpt VARCHAR(100),              
+    count INTEGER DEFAULT 0,         
+    
+       CONSTRAINT fk_bus_model 
+        FOREIGN KEY (mid) 
+        REFERENCES model (mid) 
+        ON DELETE RESTRICT
+);
+--------------------------------
+CREATE TABLE stops (
+    lid SERIAL PRIMARY KEY, 
+    bid INTEGER NOT NULL,               
+    lname VARCHAR(100) NOT NULL,        
+    
+        CONSTRAINT fk_stops_bus 
+        FOREIGN KEY (bid) 
+        REFERENCES bus (bid) 
+        ON DELETE CASCADE
+);
+----------------------------
+ create table customer(cid int,name varchar(30),mid int,phno bigint);
+---------------------
+ create table orders(ono serial,cid int,mid int,status varchar(30));
+ ---------------------
+
+///Data Manipulation (CRUD Operations)-----------------------------------
+
+1.  INSERT INTO bus (mid, bno, startpt, endpt, count) VALUES (102, 'T23', 'Tambaram', 'Broadway', 1);
+    
+2. SELECT * FROM bus WHERE startpt = 'Adyar' OR endpt = 'Adyar';
+
+ 3.   UPDATE bus SET count = 60 WHERE bno = 'B12';
+ 
+ 4.  DELETE FROM stops WHERE lid = '30';
+
+  5.  UPDATE model SET price = price * 1.10 WHERE age > 10;
+
+
+///Joins and Multi-Table Queries---------------------------------------
+
+  1.  SELECT b.bno, m.btype FROM bus b JOIN model m ON b.mid = m.mid;
+    2. SELECT s.lname FROM stops s JOIN bus b ON s.bid = b.bid JOIN model m ON b.mid = m.mid WHERE m.btype = 'Low Floor';
+    3. SELECT m.btype, b.bno FROM model m LEFT JOIN bus b ON m.mid = b.mid;
+    4. SELECT b.bno, s.lname FROM bus b JOIN stops s ON b.bid = s.bid WHERE b.startpt = 'T. Nagar';
+    5. SELECT AVG(m.price) FROM bus b JOIN model m ON b.mid = m.mid WHERE b.startpt = 'Broadway';
+
+////Aggregate Functions and Grouping
+
+   6. SELECT SUM(count) AS total_fleet_size FROM bus;
+   7. SELECT btype FROM model GROUP BY btype ORDER BY AVG(price) DESC LIMIT 1;
+    ///SELECT bid, COUNT(lid) AS number_of_stops FROM stops GROUP BY bid HAVING COUNT(lid) > 2;
+   8.  SELECT ROUND(AVG(age), 1) AS average_model_age FROM model;
+   9. SELECT btype, age FROM model ORDER BY age DESC LIMIT 1;
+
+
+////'Views, Functions, and Procedures
+  10.  CREATE VIEW prices AS SELECT b.bno, m.btype, m.price FROM bus b JOIN model m ON b.bid = m.bid;
+    -------------------
+  11.  SELECT bno, btype FROM prices where price > 23;
+    -----------------------
+  12.  CREATE FUNCTION get_model_price(model_name VARCHAR) RETURNS NUMERIC AS $$SELECT price FROM model WHERE btype = model_name;$$ LANGUAGE SQL;
+    select * from get_model_price('low floor');
+    -------------------------------
+
+
+  SELECT get_model_price('Deluxe AC');
+  ------------------------
+13 . CREATE PROCEDURE bus_routes(bus_num VARCHAR, new_start int, new_end int) AS $$BEGIN UPDATE bus SET startpt = new_start, endpt = new_end WHERE bno = bus_num; END;$$ LANGUAGE plpgsql;
+call bus_routes('17B',3,45);
+----------------------------------------
+14. CREATE OR REPLACE FUNCTION auditlog_cancel()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO orders (cid, mid, status)
+    VALUES (OLD.cid, OLD.mid, 'CANCELLED');
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+DELETE FROM customer WHERE cid = 101;
+-------------------------------------
+15. CREATE TRIGGER exit
+AFTER DELETE ON customer
+FOR EACH ROW
+ EXECUTE FUNCTION auditlog_cancel();
+-----------------------------------------------
+16. create or replace function auditlog1() returns trigger as $$
+begin
+insert into orders(cid,mid,status) values (new.cid,new.mid,'PAID');
+return new;
+end;
+ $$ language plpgsql;
+---------------------------------------
+17.create trigger entry after insert on customer for each row
+execute function auditlog1();
+
+insert into customer values (101,'harish',201,9897728);
+---------------------------------
+
+
+
+18.CREATE TRIGGER exit
+AFTER DELETE ON customer
+FOR EACH ROW
+EXECUTE FUNCTION auditlog_cancel();
+
+--------------------
+subqueries :
+19.SELECT bno, count
+FROM bus
+WHERE count = (SELECT MAX(count) FROM bus);
+--------------
+20. SELECT lname, bid
+FROM stops
+WHERE bid IN (
+    SELECT bid
+    FROM bus b
+    JOIN model m ON b.mid = m.mid
+    WHERE m.btype = 'ac bus'
+);
+----------------
+21. SELECT btype
+FROM model
+WHERE mid IN (
+    SELECT mid
+    FROM bus
+    GROUP BY mid
+    HAVING COUNT(bid) > 2
+);
+--------------------
+22. SELECT AVG(price) AS avg_price_of_newest_models
+FROM model
+WHERE mid IN (
+    SELECT mid
+    FROM model
+    ORDER BY age ASC 
+    LIMIT 2
+);
+---------------------------
+23. SELECT bno, startpt, endpt
+FROM bus
+WHERE bid = (
+    SELECT bid
+    FROM stops
+    GROUP BY bid
+    ORDER BY COUNT(lid) DESC
+    LIMIT 1
+);
+--------------------
+24. SELECT 
+    btype, 
+    age,
+    age - (SELECT MIN(age) FROM model) AS years_older_than_youngest
+FROM model;
+----------------------
+25. SELECT cname, phone
+FROM customer c
+WHERE EXISTS (
+    SELECT 1
+    FROM orders o
+    WHERE o.cid = c.cid
+);
+-----------------------------
+26. SELECT bno, startpt, endpt
+FROM bus
+WHERE bid IN (
+    SELECT bid
+    FROM stops
+    WHERE lname ILIKE 'a%'
+);
+-----------------------------
+27. SELECT btype
+FROM model
+WHERE mid IN (
+    SELECT mid
+    FROM availability
+    WHERE available = 'no'
+);
+---------------------
+28. SELECT
+    m.btype,
+    o_summary.total_orders_revenue
+FROM model m
+JOIN (
+    
+    SELECT mid, SUM(total_price) AS total_orders_revenue
+    FROM orders -- Using your provided 'orders' table
+    GROUP BY mid
+) AS o_summary
+ON m.mid = o_summary.mid;
+--------------------------
+
+
 
