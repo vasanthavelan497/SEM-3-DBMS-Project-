@@ -1,1 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTC Bus Dashboard (Interactive)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .container {
+            max-width: 1200px;
+        }
+        .card {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+        /* Modal Backdrop Style */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        .route-button {
+            transition: all 0.2s;
+            background-color: #1d4ed8; /* MTC Blue */
+        }
+        .route-button:hover {
+            transform: scale(1.02);
+            box-shadow: 0 5px 10px -2px rgba(37, 99, 235, 0.4);
+            background-color: #1e40af;
+        }
+        .view-toggle-button {
+            transition: background-color 0.3s, color 0.3s, box-shadow 0.3s;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
 
+    <div class="container mx-auto">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl font-extrabold text-blue-700">MTC Route Management Dashboard</h1>
+            <p class="text-gray-500 mt-2">Real-time view of buses and routes with interactive filters and updates log.</p>
+        </header>
+
+        <!-- Status Message Box -->
+        <div id="statusMessage" class="card p-4 mb-6 rounded-lg text-center font-medium transition duration-300 hidden"></div>
+        
+        <!-- Toggle Buttons for different views -->
+        <div class="flex justify-center mb-6 space-x-4 flex-wrap">
+            <button 
+                id="busDetailsBtn" 
+                onclick="toggleView('busDetails')" 
+                class="view-toggle-button px-4 sm:px-6 py-3 font-semibold rounded-lg shadow-md bg-blue-600 text-white hover:bg-blue-700 mb-2"
+            >
+                Bus Details & Filters
+            </button>
+            <button 
+                id="routeStopsBtn" 
+                onclick="toggleView('routeStops')" 
+                class="view-toggle-button px-4 sm:px-6 py-3 font-semibold rounded-lg shadow-md bg-gray-300 text-gray-700 hover:bg-gray-400 mb-2"
+            >
+                Bus Route Stops
+            </button>
+             <button 
+                id="recentUpdatesBtn" 
+                onclick="toggleView('recentUpdates')" 
+                class="view-toggle-button px-4 sm:px-6 py-3 font-semibold rounded-lg shadow-md bg-gray-300 text-gray-700 hover:bg-gray-400 mb-2"
+            >
+                Recent Bus Additions
+            </button>
+        </div>
+        
+        <!-- === BUS DETAILS VIEW (Filters, Images, and Main Table) === -->
+        <div id="busDetailsView">
+            
+            <!-- Bus Model Visuals Showcase -->
+            <div class="card bg-white p-6 rounded-xl mb-6">
+                <h3 class="text-xl font-bold text-blue-700 mb-4 border-b pb-2">Bus Model Showcase</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-center">
+                    <div>
+                        <img src="https://www.manufacturingtodayindia.com/cloud/2024/11/11/ASHOK-LEYLAND-1-1568x882.jpg" onerror="this.onerror=null;this.src='https://placehold.co/400x200/4f46e5/ffffff?text=Low+Floor+Model';" alt="Low Floor Model" class="rounded-lg mb-2 w-full h-auto object-cover max-h-64">
+                        <p class="font-semibold text-gray-700">Low Floor Model (Accessible)</p>
+                    </div>
+                    <div>
+                        <img src="https://images.drivespark.com/img/2024/10/switch-jsw-bus-1729748563.jpg" onerror="this.onerror=null;this.src='https://placehold.co/400x200/1e3a8a/ffffff?text=Deluxe+AC+Model';" alt="Deluxe A/C Bus" class="rounded-lg mb-2 w-full h-auto object-cover max-h-64">
+                        <p class="font-semibold text-gray-700">Deluxe A/C Model</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Input Section -->
+            <div id="searchContainer" class="card bg-white p-6 rounded-xl mb-6 flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4">
+                <input 
+                    type="text" 
+                    id="busSearchInput" 
+                    placeholder="Enter Bus Number (e.g., 29C, 11G) to search" 
+                    class="flex-grow p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 w-full sm:w-auto"
+                    onkeyup="filterBusData()"
+                >
+                <button 
+                    id="resetSearchBtn" 
+                    onclick="resetSearch()" 
+                    class="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg transition duration-300 shadow-md w-full sm:w-auto"
+                >
+                    Reset Search
+                </button>
+            </div>
+
+
+            <!-- Bus Details Table & Add Button -->
+            <div id="busDataSection" class="card bg-white p-6 rounded-xl overflow-x-auto mb-6">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h2 class="text-2xl font-semibold text-gray-800">All Bus Details</h2>
+                    <button 
+                        onclick="openAddBusModal()" 
+                        class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-300 shadow-md flex items-center space-x-2"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                        </svg>
+                        <span>Add New Bus</span>
+                    </button>
+                </div>
+                
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-blue-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-blue-600 uppercase tracking-wider rounded-tl-lg">ID</th>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-blue-600 uppercase tracking-wider">Number</th>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-blue-600 uppercase tracking-wider">Type</th>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-blue-600 uppercase tracking-wider">Start/End Pt</th>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-blue-600 uppercase tracking-wider">Capacity</th>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-blue-600 uppercase tracking-wider">Available (Toggle)</th>
+                            <th class="px-6 py-3 text-left text-xs font-bold text-blue-600 uppercase tracking-wider rounded-tr-lg">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="busTableBody" class="bg-white divide-y divide-gray-100">
+                        <!-- Bus data will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Famous Routes Buttons (Interactivity) -->
+            <div class="card bg-white p-6 rounded-xl mb-6">
+                <h3 class="text-xl font-bold text-blue-700 mb-3 border-b pb-2">Filter by Famous Routes</h3>
+                <div class="flex flex-wrap justify-center gap-4">
+                    <button onclick="filterByRoute('21G')" class="route-button text-white font-bold py-3 px-6 rounded-lg shadow-md">Route 21G</button>
+                    <button onclick="filterByRoute('49F')" class="route-button text-white font-bold py-3 px-6 rounded-lg shadow-md">Route 49F</button>
+                    <button onclick="filterByRoute('29C')" class="route-button text-white font-bold py-3 px-6 rounded-lg shadow-md">Route 29C</button>
+                    <button onclick="filterByRoute('401')" class="route-button text-white font-bold py-3 px-6 rounded-lg shadow-md">Route 401</button>
+                    <button onclick="filterByRoute('Reset')" class="route-button bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg shadow-md">Show All Routes</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- === ROUTE STOPS VIEW (Initially Hidden) === -->
+        <div id="routeStopsView" class="card bg-white p-6 rounded-xl overflow-x-auto hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">Bus Route Stops</h2>
+             <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-blue-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-blue-600 uppercase tracking-wider rounded-tl-lg">Stop ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-blue-600 uppercase tracking-wider">Stop Name</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-blue-600 uppercase tracking-wider">Bus ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-blue-600 uppercase tracking-wider rounded-tr-lg">Bus Number</th>
+                    </tr>
+                </thead>
+                <tbody id="stopsTableBody" class="bg-white divide-y divide-gray-100">
+                    <tr><td colspan="4" class="p-4 text-center text-gray-500">Stop data would be loaded here from /api/stops endpoint.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- === RECENT UPDATES VIEW (New Section - Initially Hidden) === -->
+        <div id="recentUpdatesView" class="card bg-white p-6 rounded-xl overflow-x-auto hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">Recent Bus Additions (Session Log)</h2>
+            <p class="text-sm text-gray-500 mb-4">This table displays buses added using the 'Add New Bus' modal since the page was last loaded.</p>
+             <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-green-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-green-600 uppercase tracking-wider rounded-tl-lg">ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-green-600 uppercase tracking-wider">Bus Number</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-green-600 uppercase tracking-wider">Type</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-green-600 uppercase tracking-wider">Route (Start to End)</th>
+                        <th class="px-6 py-3 text-left text-xs font-bold text-green-600 uppercase tracking-wider rounded-tr-lg">Capacity</th>
+                    </tr>
+                </thead>
+                <tbody id="updatesTableBody" class="bg-white divide-y divide-gray-100">
+                    <!-- Recent bus data will be inserted here by JavaScript -->
+                    <tr><td colspan="5" class="p-4 text-center text-gray-500">No new buses have been added in this session yet.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- === ADD BUS MODAL === -->
+    <div id="addBusModal" class="modal-backdrop hidden flex justify-center items-center">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-lg mx-4">
+            <h3 class="text-2xl font-bold text-blue-700 mb-6 border-b pb-2">➕ Add New Bus Record</h3>
+            <form id="addBusForm" onsubmit="event.preventDefault(); addNewBus();">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <!-- Bus Number (BNO) -->
+                    <div>
+                        <label for="newBNO" class="block text-sm font-medium text-gray-700">Bus Number (BNO)*</label>
+                        <input type="text" id="newBNO" required class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <!-- Bus Type (BTYPE) -->
+                    <div>
+                        <label for="newBType" class="block text-sm font-medium text-gray-700">Bus Type</label>
+                        <select id="newBType" class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="Standard">Standard</option>
+                            <option value="Low Floor">Low Floor</option>
+                            <option value="Deluxe A/C">Deluxe A/C</option>
+                        </select>
+                    </div>
+                    <!-- Start Point (STARTPT) -->
+                    <div>
+                        <label for="newStartPT" class="block text-sm font-medium text-gray-700">Start Point</label>
+                        <input type="text" id="newStartPT" class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <!-- End Point (ENDPT) -->
+                    <div>
+                        <label for="newEndPT" class="block text-sm font-medium text-gray-700">End Point</label>
+                        <input type="text" id="newEndPT" class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <!-- Capacity (COUNT) -->
+                    <div>
+                        <label for="newCount" class="block text-sm font-medium text-gray-700">Capacity (Seats)</label>
+                        <input type="number" id="newCount" min="10" max="100" value="50" class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <!-- Available (AVAILABLE) -->
+                    <div>
+                        <label for="newAvailable" class="block text-sm font-medium text-gray-700">Status</label>
+                        <select id="newAvailable" class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="Yes">Available</option>
+                            <option value="No">Unavailable (Maintenance)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeAddBusModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 px-4 rounded-lg transition duration-200">
+                        Cancel
+                    </button>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
+                        Insert Bus
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        let allBusData = [];
+        let allStopData = []; // Placeholder for stop data
+        let recentlyAddedBuses = []; // New array to track buses added in this session
+        const BUS_API_URL = 'http://localhost:5001/api/buses'; 
+        const STOPS_API_URL = 'http://localhost:5001/api/stops'; 
+
+        const busTableBody = document.getElementById('busTableBody');
+        const stopsTableBody = document.getElementById('stopsTableBody');
+        const updatesTableBody = document.getElementById('updatesTableBody'); // New element reference
+        const statusMessage = document.getElementById('statusMessage');
+        const searchInput = document.getElementById('busSearchInput');
+        
+        // View Element References
+        const busDetailsView = document.getElementById('busDetailsView');
+        const routeStopsView = document.getElementById('routeStopsView');
+        const recentUpdatesView = document.getElementById('recentUpdatesView'); // New view reference
+
+        // Button References
+        const busDetailsBtn = document.getElementById('busDetailsBtn');
+        const routeStopsBtn = document.getElementById('routeStopsBtn');
+        const recentUpdatesBtn = document.getElementById('recentUpdatesBtn'); // New button reference
+        
+        const addBusModal = document.getElementById('addBusModal');
+        const addBusForm = document.getElementById('addBusForm');
+
+
+        // --- UI & Utility Functions ---
+
+        function displayMessage(message, type = 'info') {
+            statusMessage.textContent = message;
+            statusMessage.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800', 'bg-yellow-100', 'text-yellow-800');
+            statusMessage.classList.remove('hidden');
+            if (type === 'error') {
+                statusMessage.classList.add('bg-red-100', 'text-red-800');
+            } else if (type === 'success') {
+                statusMessage.classList.add('bg-green-100', 'text-green-800');
+            } else {
+                statusMessage.classList.add('bg-yellow-100', 'text-yellow-800');
+            }
+        }
+        
+        function updateToggleButtonStyles(activeView) {
+            // Define all buttons and views
+            const buttons = [
+                { btn: busDetailsBtn, view: 'busDetails' },
+                { btn: routeStopsBtn, view: 'routeStops' },
+                { btn: recentUpdatesBtn, view: 'recentUpdates' }
+            ];
+
+            buttons.forEach(({ btn, view }) => {
+                if (view === activeView) {
+                    btn.classList.replace('bg-gray-300', 'bg-blue-600');
+                    btn.classList.replace('text-gray-700', 'text-white');
+                    btn.classList.add('shadow-xl');
+                    btn.classList.remove('hover:bg-gray-400');
+                    btn.classList.add('hover:bg-blue-700');
+                } else {
+                    btn.classList.replace('bg-blue-600', 'bg-gray-300');
+                    btn.classList.replace('text-white', 'text-gray-700');
+                    btn.classList.remove('shadow-xl');
+                    btn.classList.remove('hover:bg-blue-700');
+                    btn.classList.add('hover:bg-gray-400');
+                }
+            });
+        }
+
+        // --- Modal Functions ---
+        function openAddBusModal() {
+            addBusModal.classList.remove('hidden');
+            addBusForm.reset(); 
+            document.getElementById('newBNO').focus(); 
+        }
+
+        function closeAddBusModal() {
+            addBusModal.classList.add('hidden');
+        }
+
+        // --- Data Modification Functions ---
+        
+        function addNewBus() {
+            const bno = document.getElementById('newBNO').value.trim();
+            const btype = document.getElementById('newBType').value;
+            const startpt = document.getElementById('newStartPT').value.trim();
+            const endpt = document.getElementById('newEndPT').value.trim();
+            const count = parseInt(document.getElementById('newCount').value, 10);
+            const available = document.getElementById('newAvailable').value;
+
+            if (!bno) {
+                displayMessage('Bus Number (BNO) is required!', 'error');
+                return;
+            }
+
+            // Find the highest existing BID to assign a new, unique one.
+            const maxBid = allBusData.length > 0 
+                ? Math.max(...allBusData.map(bus => bus.bid || 0))
+                : 100; // Start at 100 if data is empty
+            const newBid = maxBid >= 100 ? maxBid + 1 : 100;
+
+            const newBus = {
+                bid: newBid,
+                bno: bno,
+                btype: btype,
+                startpt: startpt || 'Depot',
+                endpt: endpt || 'Depot',
+                count: count,
+                available: available
+            };
+
+            // 1. Add the new bus to the local data array
+            allBusData.push(newBus);
+
+            // 2. Add the new bus to the recent updates array
+            recentlyAddedBuses.push(newBus);
+
+            // 3. Re-render the main table and the updates table
+            renderTable(allBusData); 
+            renderUpdatesTable(recentlyAddedBuses);
+
+            // 4. Close the modal and show a success message
+            closeAddBusModal();
+            displayMessage(`✅ Bus ${bno} (ID: ${newBid}) successfully added. Check 'Recent Bus Additions' tab.`, 'success');
+        }
+        
+        /**
+         * Toggles the 'available' status of a bus by its ID and re-renders the table.
+         * @param {number} bid The ID of the bus to toggle.
+         */
+        function toggleAvailability(bid) {
+            const busIndex = allBusData.findIndex(bus => bus.bid === bid);
+
+            if (busIndex !== -1) {
+                const currentStatus = allBusData[busIndex].available;
+                const newStatus = currentStatus && currentStatus.toLowerCase() === 'yes' ? 'No' : 'Yes';
+                
+                allBusData[busIndex].available = newStatus;
+
+                // Re-render the table, maintaining the current search/filter view
+                filterBusData(); 
+                
+                displayMessage(`Bus ID ${bid} availability successfully toggled to "${newStatus}".`, 'success');
+            } else {
+                displayMessage(`Error: Bus with ID ${bid} not found.`, 'error');
+            }
+        }
+        
+        /**
+         * Deletes a bus record from the local array by its ID.
+         * @param {number} bid The ID of the bus to delete.
+         */
+        function deleteBusRecord(bid) {
+            const initialLength = allBusData.length;
+            const busToDelete = allBusData.find(bus => bus.bid === bid);
+            const busNumber = busToDelete ? busToDelete.bno : `ID ${bid}`;
+            
+            // Filter out the bus with the matching BID from main data
+            allBusData = allBusData.filter(bus => bus.bid !== bid);
+
+            if (allBusData.length < initialLength) {
+                // Remove from recently added buses list too, if present
+                recentlyAddedBuses = recentlyAddedBuses.filter(bus => bus.bid !== bid);
+                
+                // Re-render both tables
+                filterBusData(); // This handles re-rendering the main table
+                renderUpdatesTable(recentlyAddedBuses);
+
+                displayMessage(`🗑️ Bus ${busNumber} (ID ${bid}) successfully deleted. (Deletion is local to this session only.)`, 'success');
+            } else {
+                displayMessage(`Error: Bus with ID ${bid} not found for deletion.`, 'error');
+            }
+        }
+
+
+        // --- View Toggling Function ---
+        function toggleView(view) {
+            // Hide all views
+            busDetailsView.classList.add('hidden');
+            routeStopsView.classList.add('hidden');
+            recentUpdatesView.classList.add('hidden');
+
+            // Show the selected view
+            if (view === 'busDetails') {
+                busDetailsView.classList.remove('hidden');
+                // Ensure bus data is loaded and displayed when switching back
+                if (allBusData.length === 0) fetchBusData(); else filterBusData();
+            } else if (view === 'routeStops') {
+                routeStopsView.classList.remove('hidden');
+                // Fetch stop data (or display placeholder) when switching
+                if (allStopData.length === 0) fetchStopData(); else renderStopsTable(allStopData);
+            } else if (view === 'recentUpdates') {
+                recentUpdatesView.classList.remove('hidden');
+                // Render the updates table
+                renderUpdatesTable(recentlyAddedBuses);
+            }
+            
+            updateToggleButtonStyles(view);
+        }
+
+        // --- Data Fetching Functions ---
+
+        async function fetchBusData() {
+            displayMessage('Loading bus data from API...', 'info');
+            try {
+                // Simulating a network delay for demonstration purposes
+                await new Promise(resolve => setTimeout(resolve, 500)); 
+                
+                // Fallback Sample Data (used instead of actual fetch)
+                const data = [
+                    { bid: 101, bno: '29C', btype: 'Low Floor', startpt: 'Tambaram', endpt: 'Broadway', count: 60, available: 'Yes' },
+                    { bid: 102, bno: '49F', btype: 'Deluxe A/C', startpt: 'Koyambedu', endpt: 'Siruseri', count: 45, available: 'Yes' },
+                    { bid: 103, bno: '401', btype: 'Standard', startpt: 'T. Nagar', endpt: 'Vandalur Zoo', count: 55, available: 'No' },
+                    { bid: 104, bno: '11G', btype: 'Standard', startpt: 'Poonamallee', endpt: 'Mylapore', count: 50, available: 'Yes' }
+                ];
+
+                allBusData = data;
+                renderTable(allBusData);
+                displayMessage(`Successfully loaded ${data.length} initial bus records.`, 'success');
+            } catch (error) {
+                console.error("API Fetch Error:", error);
+                let message = '❌ NETWORK ERROR: Could not connect to the API. Showing sample records.';
+                displayMessage(message, 'error');
+                
+                // Final Fallback Sample Data in case of error
+                allBusData = [
+                    { bid: 101, bno: '29C', btype: 'Low Floor', startpt: 'Tambaram', endpt: 'Broadway', count: 60, available: 'Yes' },
+                    { bid: 102, bno: '49F', btype: 'Deluxe A/C', startpt: 'Koyambedu', endpt: 'Siruseri', count: 45, available: 'Yes' },
+                    { bid: 103, bno: '401', btype: 'Standard', startpt: 'T. Nagar', endpt: 'Vandalur Zoo', count: 55, available: 'No' }
+                ];
+                renderTable(allBusData);
+            }
+        }
+        
+        async function fetchStopData() {
+            displayMessage('Loading stop data from API...', 'info');
+            // Simulate successful data for demo if API fails
+            allStopData = [
+                { lid: 1, lname: 'Central', bid: 101, bno: '29C' },
+                { lid: 2, lname: 'T Nagar', bid: 102, bno: '49F' },
+                { lid: 3, lname: 'Vandalur Zoo', bid: 103, bno: '401' },
+                { lid: 4, lname: 'Koyambedu', bid: 102, bno: '49F' }
+            ];
+            renderStopsTable(allStopData);
+            displayMessage('⚠️ Stops API connection simulated. Showing sample stop data.', 'info');
+        }
+
+
+        // --- Data Rendering Functions ---
+
+        function renderTable(buses) {
+            busTableBody.innerHTML = '';
+            if (buses.length === 0) {
+                // Colspan adjusted to 7 to account for the new Action column
+                busTableBody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No buses found matching the current filter/search.</td></tr>';
+                return;
+            }
+
+            // Sort the data by Bus ID (BID) before rendering
+            buses.sort((a, b) => a.bid - b.bid);
+
+            buses.forEach(bus => {
+                const row = busTableBody.insertRow();
+                row.className = 'hover:bg-blue-50 transition duration-150';
+
+                // 1. BID (ID)
+                let cell = row.insertCell(); cell.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900'; cell.textContent = bus.bid;
+                // 2. BNO (Number)
+                cell = row.insertCell(); cell.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600'; cell.textContent = bus.bno;
+                // 3. BTYPE (Type)
+                cell = row.insertCell(); cell.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500'; cell.textContent = bus.btype || 'N/A';
+                // 4. STARTPT/ENDPT
+                cell = row.insertCell(); cell.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500'; cell.textContent = `${bus.startpt || '?'}/${bus.endpt || '?'}`;
+                // 5. COUNT (Capacity)
+                cell = row.insertCell(); cell.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500'; cell.textContent = bus.count || 'N/A';
+                
+                // 6. Interactive Availability Cell
+                let availabilityCell = row.insertCell();
+                availabilityCell.className = 'px-6 py-4 whitespace-nowrap text-sm font-semibold';
+                const isAvailable = bus.available && bus.available.toLowerCase() === 'yes';
+                const statusText = isAvailable ? 'Available' : 'Unavailable';
+                const statusClass = isAvailable ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                
+                // Render a clickable button to toggle availability
+                availabilityCell.innerHTML = `
+                    <button
+                        onclick="toggleAvailability(${bus.bid})"
+                        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full cursor-pointer transition duration-150 ${statusClass} hover:shadow-lg hover:ring-2 ring-offset-1 ring-blue-300"
+                        title="Click to toggle status"
+                    >
+                        ${statusText}
+                    </button>
+                `;
+
+                // 7. NEW ACTION CELL (Delete Button)
+                let actionCell = row.insertCell();
+                actionCell.className = 'px-6 py-4 whitespace-nowrap text-sm';
+                actionCell.innerHTML = `
+                    <button 
+                        onclick="deleteBusRecord(${bus.bid})" 
+                        class="bg-red-500 hover:bg-red-600 text-white font-semibold py-1 px-3 rounded-md transition duration-200 text-xs shadow-md"
+                        title="Delete this record"
+                    >
+                        Delete
+                    </button>
+                `;
+            });
+        }
+        
+        function renderStopsTable(stops) {
+            stopsTableBody.innerHTML = '';
+            if (stops.length === 0) {
+                stopsTableBody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-500">No stop data found.</td></tr>';
+                return;
+            }
+
+            stops.forEach(stop => {
+                const row = stopsTableBody.insertRow();
+                row.className = 'hover:bg-blue-50 transition duration-150';
+
+                // Stop ID, Stop Name, Bus ID, Bus Number
+                let cell = row.insertCell(); cell.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900'; cell.textContent = stop.lid;
+                let cell2 = row.insertCell(); cell2.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600'; cell2.textContent = stop.lname;
+                let cell3 = row.insertCell(); cell3.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500'; cell3.textContent = stop.bid;
+                let cell4 = row.insertCell(); cell4.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500'; cell4.textContent = stop.bno;
+            });
+        }
+        
+        /**
+         * Renders the table for recently added buses.
+         * @param {Array} updates Array of bus objects added during the current session.
+         */
+        function renderUpdatesTable(updates) {
+            updatesTableBody.innerHTML = '';
+            
+            // Sort by descending BID so most recent additions are at the top
+            updates.sort((a, b) => b.bid - a.bid);
+            
+            if (updates.length === 0) {
+                updatesTableBody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">No new buses have been added in this session yet.</td></tr>';
+                return;
+            }
+
+            updates.forEach(bus => {
+                const row = updatesTableBody.insertRow();
+                row.className = 'bg-green-50/50 hover:bg-green-100 transition duration-150';
+
+                // ID, Bus Number, Type, Route, Capacity
+                let cell = row.insertCell(); cell.className = 'px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900'; cell.textContent = bus.bid;
+                cell = row.insertCell(); cell.className = 'px-6 py-4 whitespace-nowrap text-sm font-bold text-green-700'; cell.textContent = bus.bno;
+                cell = row.insertCell(); cell.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500'; cell.textContent = bus.btype || 'Standard';
+                cell = row.insertCell(); cell.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500'; cell.textContent = `${bus.startpt || '?'}/\u2192${bus.endpt || '?'}`;
+                cell = row.insertCell(); cell.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500'; cell.textContent = bus.count || 'N/A';
+            });
+        }
+
+
+        // --- Search and Filter Functions ---
+
+        /**
+         * Filters the bus table data based on the text in the search input field.
+         */
+        function filterBusData() {
+            const searchTerm = searchInput.value.trim().toUpperCase();
+
+            if (searchTerm === '') {
+                renderTable(allBusData); 
+                return;
+            }
+
+            // Filter by bus number (bno)
+            const filteredData = allBusData.filter(bus => 
+                bus.bno && bus.bno.toUpperCase().includes(searchTerm)
+            );
+
+            renderTable(filteredData);
+
+            if (filteredData.length > 0) {
+                displayMessage(`Found ${filteredData.length} bus(es) matching "${searchTerm}".`, 'info');
+            } else {
+                displayMessage(`No bus found with number containing "${searchTerm}".`, 'info');
+            }
+        }
+
+        /**
+         * Filters the bus table by a specific bus route number from a button click.
+         * @param {string} routeNumber The exact bus route number (e.g., '21G') or 'Reset'.
+         */
+        function filterByRoute(routeNumber) {
+            if (routeNumber === 'Reset') {
+                resetSearch();
+                return;
+            }
+            
+            // Set the search input field to the route number and trigger the main filter
+            searchInput.value = routeNumber;
+            filterBusData();
+
+            displayMessage(`Showing results for famous Route ${routeNumber}.`, 'info');
+        }
+
+
+        function resetSearch() {
+            searchInput.value = ''; 
+            renderTable(allBusData); 
+            if (allBusData.length > 0) {
+                displayMessage(`Search cleared. Showing all ${allBusData.length} bus records.`, 'success');
+            }
+        }
+
+        // --- Initialization ---
+        window.onload = () => {
+             // Expose functions to the global scope for onclick attributes
+            window.toggleView = toggleView;
+            window.filterBusData = filterBusData;
+            window.filterByRoute = filterByRoute;
+            window.resetSearch = resetSearch;
+            window.openAddBusModal = openAddBusModal;
+            window.closeAddBusModal = closeAddBusModal;
+            window.addNewBus = addNewBus;
+            window.toggleAvailability = toggleAvailability; 
+            window.renderUpdatesTable = renderUpdatesTable; 
+            window.deleteBusRecord = deleteBusRecord; // Expose new delete function
+
+            // Start with the Bus Details view
+            toggleView('busDetails'); 
+        };
+
+    </script>
+</body>
+</html>
